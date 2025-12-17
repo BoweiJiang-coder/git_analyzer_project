@@ -1,286 +1,185 @@
-"""
-可视化模块
-功能：将分析结果可视化为图表
-"""
-import matplotlib.pyplot as plt
-import matplotlib
-from datetime import datetime
-import numpy as np
 import os
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import numpy as np
 
-# 设置中文字体（根据系统调整）
+# 字体配置：尝试加载中文字体，失败则回退到默认
 try:
-    # Windows系统
-    matplotlib.font_manager.fontManager.addfont(os.path.join(
-        matplotlib.get_data_path(), "fonts/ttf", "simhei.ttf"
-    ))
-    font_name = matplotlib.font_manager.FontProperties(
-        fname=os.path.join(
-            matplotlib.get_data_path(), "fonts/ttf", "simhei.ttf"
-        )
-    ).get_name()
-    plt.rcParams['font.sans-serif'] = [font_name]
-except:
-    # 如果找不到中文字体，使用默认字体
+    # 优先尝试 Windows 下常用的 SimHei
+    font_path = os.path.join(matplotlib.get_data_path(), "fonts/ttf", "simhei.ttf")
+    if os.path.exists(font_path):
+        fm.fontManager.addfont(font_path)
+        plt.rcParams['font.sans-serif'] = [fm.FontProperties(fname=font_path).get_name()]
+    else:
+        # Mac/Linux 常见中文备选
+        plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'PingFang SC', 'Microsoft YaHei', 'DejaVu Sans']
+except Exception:
     plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
 
-plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
+plt.rcParams['axes.unicode_minus'] = False
 
 
 class GitVisualizer:
-    """Git分析结果可视化器"""
-
     def __init__(self, output_dir='output'):
-        """
-        初始化可视化器
-
-        参数:
-            output_dir: 输出目录
-        """
         self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
 
-        # 确保输出目录存在
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+    def _save_plot(self, filename):
+        filepath = os.path.join(self.output_dir, filename)
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        print(f"Generated: {filepath}")
 
     def plot_author_ranking(self, author_ranking, save=True):
-        """
-        绘制作者贡献排名图
-
-        参数:
-            author_ranking: 作者排名列表
-            save: 是否保存图片
-
-        返回:
-            matplotlib.figure.Figure: 图表对象
-        """
         if not author_ranking:
-            print("没有作者数据可绘制")
             return None
 
-        # 提取数据
         authors = [item['作者'] for item in author_ranking]
         commits = [item['提交次数'] for item in author_ranking]
-        percentages = [item['占比'] for item in author_ranking]
 
-        # 创建图表
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
 
-        # 子图1：柱状图
+        # Bar chart
         bars = ax1.bar(range(len(authors)), commits, color='skyblue', edgecolor='black')
-        ax1.set_xlabel('作者')
         ax1.set_ylabel('提交次数')
-        ax1.set_title('作者贡献排名（提交次数）')
+        ax1.set_title('贡献排名')
         ax1.set_xticks(range(len(authors)))
         ax1.set_xticklabels(authors, rotation=45, ha='right')
 
-        # 在柱子上添加数值
         for bar, count in zip(bars, commits):
-            height = bar.get_height()
-            ax1.text(bar.get_x() + bar.get_width() / 2., height,
+            ax1.text(bar.get_x() + bar.get_width() / 2., bar.get_height(),
                      f'{count}', ha='center', va='bottom')
 
-        # 子图2：饼图
+        # Pie chart
         ax2.pie(commits, labels=authors, autopct='%1.1f%%', startangle=90)
-        ax2.set_title('作者贡献占比')
-        ax2.axis('equal')  # 确保饼图是圆形
+        ax2.set_title('贡献占比')
+        ax2.axis('equal')
 
         plt.tight_layout()
-
         if save:
-            filepath = os.path.join(self.output_dir, 'author_ranking.png')
-            plt.savefig(filepath, dpi=150, bbox_inches='tight')
-            print(f"图表已保存: {filepath}")
-
+            self._save_plot('author_ranking.png')
         return fig
 
     def plot_commit_frequency(self, frequency_data, save=True):
-        """
-        绘制提交频率图
-
-        参数:
-            frequency_data: 提交频率数据（字典，key为时间，value为次数）
-            save: 是否保存图片
-
-        返回:
-            matplotlib.figure.Figure: 图表对象
-        """
         if not frequency_data:
-            print("没有提交频率数据可绘制")
             return None
 
-        # 转换数据
         dates = list(frequency_data.keys())
         counts = list(frequency_data.values())
 
-        # 创建图表
         fig, ax = plt.subplots(figsize=(14, 6))
-
-        # 绘制折线图
-        line, = ax.plot(range(len(dates)), counts, marker='o', linestyle='-',
-                        color='green', linewidth=2, markersize=5)
-
-        # 填充区域
+        
+        ax.plot(range(len(dates)), counts, marker='o', linestyle='-',
+                color='green', linewidth=2, markersize=5)
         ax.fill_between(range(len(dates)), counts, alpha=0.3, color='green')
 
-        ax.set_xlabel('时间')
         ax.set_ylabel('提交次数')
         ax.set_title('提交频率趋势')
 
-        # 设置x轴刻度（为避免重叠，每隔一定数量显示一个标签）
+        # 稀疏化 x 轴标签，避免重叠
+        ticks = range(len(dates))
+        labels = dates
         if len(dates) > 20:
             step = max(1, len(dates) // 15)
-            visible_dates = [dates[i] if i % step == 0 else '' for i in range(len(dates))]
-            ax.set_xticks(range(len(dates)))
-            ax.set_xticklabels(visible_dates, rotation=45, ha='right')
-        else:
-            ax.set_xticks(range(len(dates)))
-            ax.set_xticklabels(dates, rotation=45, ha='right')
-
-        # 添加网格
+            labels = [d if i % step == 0 else '' for i, d in enumerate(dates)]
+        
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(labels, rotation=45, ha='right')
         ax.grid(True, alpha=0.3, linestyle='--')
 
         plt.tight_layout()
-
         if save:
-            filepath = os.path.join(self.output_dir, 'commit_frequency.png')
-            plt.savefig(filepath, dpi=150, bbox_inches='tight')
-            print(f"图表已保存: {filepath}")
-
+            self._save_plot('commit_frequency.png')
         return fig
 
     def plot_combined_report(self, basic_stats, author_ranking, frequency_data, save=True):
-        """
-        绘制综合报告图
-
-        参数:
-            basic_stats: 基础统计信息
-            author_ranking: 作者排名
-            frequency_data: 提交频率数据
-            save: 是否保存图片
-        """
-        # 创建一个大图
         fig = plt.figure(figsize=(16, 12))
 
-        # 1. 基本信息表格（文本）
+        # 1. 文本信息面板
         ax1 = plt.subplot2grid((3, 3), (0, 0), colspan=3)
         ax1.axis('off')
-
-        # 创建基本信息文本
-        info_text = "仓库分析报告\n\n"
-        info_text += f"总提交数: {basic_stats.get('总提交数', 0)}\n"
-        info_text += f"作者数: {basic_stats.get('作者数', 0)}\n"
-        info_text += f"首次提交: {basic_stats.get('首次提交时间', 'N/A')}\n"
-        info_text += f"最近提交: {basic_stats.get('最近提交时间', 'N/A')}\n"
-        info_text += f"活跃天数: {basic_stats.get('活跃天数', 0)}\n"
-
+        
+        info_text = (
+            "仓库分析报告\n\n"
+            f"总提交数: {basic_stats.get('总提交数', 0)}\n"
+            f"作者数: {basic_stats.get('作者数', 0)}\n"
+            f"活跃周期: {basic_stats.get('首次提交时间', '-')} 至 {basic_stats.get('最近提交时间', '-')}\n"
+            f"活跃天数: {basic_stats.get('活跃天数', 0)}"
+        )
+        
         ax1.text(0.1, 0.5, info_text, fontsize=12, verticalalignment='center',
                  bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-        ax1.set_title('仓库基本信息', fontsize=14, fontweight='bold')
+        ax1.set_title('基本概况', fontsize=14, fontweight='bold')
 
-        # 2. 作者贡献柱状图
+        # 2. Top 8 作者柱状图
         if author_ranking:
             ax2 = plt.subplot2grid((3, 3), (1, 0), colspan=2)
-            authors = [item['作者'] for item in author_ranking[:8]]  # 只显示前8个
-            commits = [item['提交次数'] for item in author_ranking[:8]]
+            top_authors = author_ranking[:8]
+            authors = [x['作者'] for x in top_authors]
+            commits = [x['提交次数'] for x in top_authors]
 
             bars = ax2.bar(range(len(authors)), commits, color='lightcoral', edgecolor='black')
-            ax2.set_xlabel('作者')
-            ax2.set_ylabel('提交次数')
-            ax2.set_title('作者贡献排名（前8名）')
+            ax2.set_title('核心贡献者 (Top 8)')
             ax2.set_xticks(range(len(authors)))
             ax2.set_xticklabels(authors, rotation=45, ha='right')
-
-            # 添加数值标签
+            
             for bar, count in zip(bars, commits):
-                height = bar.get_height()
-                ax2.text(bar.get_x() + bar.get_width() / 2., height,
-                         f'{count}', ha='center', va='bottom')
+                ax2.text(bar.get_x() + bar.get_width() / 2., bar.get_height(),
+                         str(count), ha='center', va='bottom')
 
-        # 3. 作者贡献饼图
+        # 3. 贡献分布饼图
         if author_ranking:
             ax3 = plt.subplot2grid((3, 3), (1, 2))
-            authors = [item['作者'] for item in author_ranking[:6]]  # 只显示前6个
-            commits = [item['提交次数'] for item in author_ranking[:6]]
+            top_n = 6
+            pie_data = author_ranking[:top_n]
+            
+            labels = [x['作者'] for x in pie_data]
+            sizes = [x['提交次数'] for x in pie_data]
 
-            # 如果作者多于6个，将后面的合并为"其他"
-            if len(author_ranking) > 6:
-                authors.append('其他')
-                other_commits = sum(item['提交次数'] for item in author_ranking[6:])
-                commits.append(other_commits)
+            if len(author_ranking) > top_n:
+                others_count = sum(x['提交次数'] for x in author_ranking[top_n:])
+                labels.append('其他')
+                sizes.append(others_count)
 
-            ax3.pie(commits, labels=authors, autopct='%1.1f%%', startangle=90)
-            ax3.set_title('作者贡献占比')
-            ax3.axis('equal')
+            ax3.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+            ax3.set_title('贡献分布')
 
-        # 4. 提交频率趋势
+        # 4. 趋势图
         if frequency_data:
             ax4 = plt.subplot2grid((3, 3), (2, 0), colspan=3)
             dates = list(frequency_data.keys())
             counts = list(frequency_data.values())
 
-            ax4.plot(range(len(dates)), counts, marker='o', linestyle='-',
-                     color='blue', linewidth=2, markersize=4)
+            ax4.plot(range(len(dates)), counts, marker='o', color='blue', linewidth=2, markersize=4)
             ax4.fill_between(range(len(dates)), counts, alpha=0.2, color='blue')
-
-            ax4.set_xlabel('时间')
-            ax4.set_ylabel('提交次数')
-            ax4.set_title('提交频率趋势')
+            ax4.set_title('活跃度趋势')
             ax4.grid(True, alpha=0.3, linestyle='--')
 
-            # 设置x轴刻度
-            if len(dates) > 15:
-                step = max(1, len(dates) // 10)
-                visible_dates = [dates[i] if i % step == 0 else '' for i in range(len(dates))]
-                ax4.set_xticks(range(len(dates)))
-                ax4.set_xticklabels(visible_dates, rotation=45, ha='right')
-            else:
-                ax4.set_xticks(range(len(dates)))
-                ax4.set_xticklabels(dates, rotation=45, ha='right')
+            # 简化 x 轴显示
+            step = max(1, len(dates) // 10) if len(dates) > 15 else 1
+            visible_dates = [d if i % step == 0 else '' for i, d in enumerate(dates)]
+            ax4.set_xticks(range(len(dates)))
+            ax4.set_xticklabels(visible_dates, rotation=45, ha='right')
 
-        plt.suptitle('Git仓库分析报告', fontsize=16, fontweight='bold')
+        plt.suptitle('Git 仓库分析大盘', fontsize=16, fontweight='bold')
         plt.tight_layout()
 
         if save:
-            filepath = os.path.join(self.output_dir, 'combined_report.png')
-            plt.savefig(filepath, dpi=150, bbox_inches='tight')
-            print(f"综合报告图已保存: {filepath}")
-
+            self._save_plot('combined_report.png')
         return fig
 
 
-def test_visualizer():
-    """测试可视化函数"""
-    # 创建测试数据
-    test_authors = [
-        {'作者': '张三', '提交次数': 45, '占比': 45.0},
-        {'作者': '李四', '提交次数': 30, '占比': 30.0},
-        {'作者': '王五', '提交次数': 15, '占比': 15.0},
-        {'作者': '赵六', '提交次数': 10, '占比': 10.0},
-    ]
-
-    test_frequency = {
-        '2024-01': 5, '2024-02': 8, '2024-03': 12,
-        '2024-04': 15, '2024-05': 20, '2024-06': 18,
-        '2024-07': 10, '2024-08': 7, '2024-09': 5,
-    }
-
-    test_stats = {
-        '总提交数': 100,
-        '作者数': 4,
-        '首次提交时间': '2024-01-01',
-        '最近提交时间': '2024-09-30',
-        '活跃天数': 273
-    }
-
-    # 创建可视化器并绘制
-    visualizer = GitVisualizer('test_output')
-    visualizer.plot_author_ranking(test_authors)
-    visualizer.plot_commit_frequency(test_frequency)
-    visualizer.plot_combined_report(test_stats, test_authors, test_frequency)
-
-    print("可视化测试完成，请查看 test_output 目录")
-
-
 if __name__ == "__main__":
-    test_visualizer()
+    # Mock data for quick testing
+    mock_authors = [
+        {'作者': f'User_{i}', '提交次数': 50 - i*5, '占比': 10.0} for i in range(8)
+    ]
+    mock_freq = {f'2024-0{i}': i*10 for i in range(1, 10)}
+    mock_stats = {
+        '总提交数': 500, '作者数': 8, 
+        '首次提交时间': '2024-01', '最近提交时间': '2024-09', '活跃天数': 200
+    }
+
+    viz = GitVisualizer('test_output')
+    viz.plot_author_ranking(mock_authors)
+    viz.plot_commit_frequency(mock_freq)
+    viz.plot_combined_report(mock_stats, mock_authors, mock_freq)
