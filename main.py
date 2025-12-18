@@ -12,6 +12,9 @@ from visualizer import GitVisualizer
 import matplotlib.pyplot as plt
 from pylab import mpl
 import warnings
+import pysnooper
+from evolution_analyzer import EvolutionAnalyzer
+from evolution_visualizer import EvolutionVisualizer
 
 # 忽略所有警告
 warnings.filterwarnings('ignore')
@@ -20,136 +23,92 @@ warnings.filterwarnings('ignore')
 mpl.rcParams["font.sans-serif"] = ["SimHei"]
 plt.rcParams['axes.unicode_minus'] = False  # 解决中文字体下坐标轴负数的负号显示问题
 
-def analyze_repository(repo_path, output_dir='results', top_authors=10):
+# 使用 pysnooper 装饰主分析函数，方便观察演化分析的内部过程
+@pysnooper.snoop()
+def run_full_analysis(repo_path, output_dir):
+    print(f"开始分析仓库: {repo_path}")
+    
+    # 1. 基础分析
+    analyzer = GitAnalyzer(repo_path)
+    basic_stats = analyzer.get_basic_stats()
+    author_ranking = analyzer.get_author_ranking()
+    frequency_data = analyzer.get_commit_frequency()
+    
+    # 2. 深度演化分析
+    evo_analyzer = EvolutionAnalyzer(repo_path)
+    full_report = evo_analyzer.generate_full_report()
+    
+    # 3. 可视化
+    print("\n正在生成可视化图表...")
+    # 基础可视化
+    viz = GitVisualizer(output_dir)
+    viz.plot_combined_report(basic_stats, author_ranking, frequency_data)
+    
+    # 增强版演化可视化
+    env_viz = EvolutionVisualizer(output_dir)
+    env_viz.plot_complexity_evolution(full_report.get('complexity_evolution'))
+    env_viz.plot_bug_patterns(full_report.get('bug_fix_analysis'))
+    env_viz.plot_code_churn(full_report.get('code_churn'))
+    env_viz.plot_contributor_growth(full_report.get('contributor_evolution'))
+    
+    # 4. 保存结果
+    env_viz.save_summary_report(full_report)
+    
+    print(f"\n恭喜！所有分析已完成，结果保存在: {output_dir}")
+
+def analyze_repository(repo_path, output_dir='analysis_results', top_authors=10):
     """
-    分析指定的Git仓库
+    分析指定的Git仓库，包含基础统计和深度演化分析
     """
     print("=" * 60)
-    print("Git仓库分析工具")
+    print("🚀 Git仓库深度演化分析工具")
     print("=" * 60)
 
-    # 检查仓库路径
     if not os.path.exists(repo_path):
         print(f"错误：路径不存在 - {repo_path}")
         return False
 
-    # 创建输出目录
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     try:
-        # 1. 初始化分析器
-        print(f"正在分析仓库: {repo_path}")
+        # 1. 基础分析
+        print(f"\n[1/3] 正在进行基础统计分析...")
         analyzer = GitAnalyzer(repo_path)
-        print(f"仓库加载成功，共发现 {len(analyzer.commits)} 次提交")
-
-        # 2. 获取各种分析结果
-        print("\n[1/5] 正在收集基础统计信息...")
         basic_stats = analyzer.get_basic_stats()
-
-        print("[2/5] 正在分析作者贡献...")
         author_ranking = analyzer.get_author_ranking(top_n=top_authors)
-
-        print("[3/5] 正在分析提交频率...")
         commit_frequency = analyzer.get_commit_frequency(by='month')
+        
+        # 基础可视化
+        viz = GitVisualizer(output_dir)
+        viz.plot_combined_report(basic_stats, author_ranking, commit_frequency)
 
-        print("[4/5] 正在获取最近提交...")
-        recent_commits = analyzer.get_recent_commits(limit=10)
+        # 2. 深度演化分析 (使用 libcst, radon, lizard)
+        print(f"\n[2/3] 正在进行深度演化分析 (这可能需要一点时间)...")
+        evo_analyzer = EvolutionAnalyzer(repo_path)
+        # 采样分析以平衡速度和精度
+        full_report = evo_analyzer.generate_full_report()
 
-        print("[5/5] 正在分析文件变更...")
-        file_stats = analyzer.get_file_changes_stats(limit=500)
-
-        # 3. 在控制台显示结果
-        print("分析结果")
-
-        print("\n基础统计:")
-        for key, value in basic_stats.items():
-            print(f"  {key}: {value}")
-
-        print(f"\n作者排名 (前{min(top_authors, len(author_ranking))}名):")
-        for i, author in enumerate(author_ranking, 1):
-            print(f"  {i:2d}. {author['作者']:20} {author['提交次数']:4d} 次 ({author['占比']:.1f}%)")
-
-        print(f"\n提交频率 (按月统计，共{len(commit_frequency)}个月):")
-        if commit_frequency:
-            # 显示最近几个月的提交情况
-            recent_months = list(commit_frequency.items())[-6:]  # 最近6个月
-            for month, count in recent_months:
-                print(f"  {month}: {count} 次")
-
-        print(f"\n最近提交 (前{len(recent_commits)}次):")
-        for commit in recent_commits:
-            print(f"  [{commit['时间']}] {commit['作者']}: {commit['消息']}")
-
-        print(f"\n文件变更统计:")
-        print(f"分析提交数: {file_stats.get('分析提交数', 0)}")
-        print(f"涉及文件总数: {file_stats.get('涉及文件总数', 0)}")
-        if file_stats.get('最常变更文件'):
-            print(f"最常变更文件 (前5个):")
-            for i, file_info in enumerate(file_stats['最常变更文件'][:5], 1):
-                print(f"    {i}. {file_info['文件']}: {file_info['变更次数']} 次")
-
-        # 4. 生成可视化图表
-        print("\n🎨 正在生成可视化图表...")
-        visualizer = GitVisualizer(output_dir)
-
-        if author_ranking:
-            visualizer.plot_author_ranking(author_ranking)
-
-        if commit_frequency:
-            visualizer.plot_commit_frequency(commit_frequency)
-
-        visualizer.plot_combined_report(basic_stats, author_ranking, commit_frequency)
-
-        # 5. 保存分析结果为JSON文件
-        print("\n正在保存分析结果...")
-        result_data = {
-            '分析信息': {
-                '仓库路径': os.path.abspath(repo_path),
-                '分析时间': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                '分析工具': 'Git提交分析器 v1.0'
-            },
-            '基础统计': basic_stats,
-            '作者排名': author_ranking,
-            '提交频率': commit_frequency,
-            '最近提交': recent_commits,
-            '文件变更统计': file_stats
-        }
-
-        json_path = os.path.join(output_dir, 'analysis_result.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(result_data, f, indent=2, ensure_ascii=False)
-
-        print(f"分析结果已保存: {json_path}")
-
-        # 6. 生成简单的文本报告
-        txt_report_path = os.path.join(output_dir, 'report.txt')
-        with open(txt_report_path, 'w', encoding='utf-8') as f:
-            f.write("Git仓库分析报告\n")
-            f.write("=" * 50 + "\n\n")
-            f.write(f"仓库路径: {os.path.abspath(repo_path)}\n")
-            f.write(f"分析时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-
-            f.write("1. 基础统计\n")
-            f.write("-" * 30 + "\n")
-            for key, value in basic_stats.items():
-                f.write(f"{key}: {value}\n")
-
-            f.write("\n2. 作者贡献排名\n")
-            f.write("-" * 30 + "\n")
-            for i, author in enumerate(author_ranking, 1):
-                f.write(f"{i}. {author['作者']}: {author['提交次数']}次 ({author['占比']:.1f}%)\n")
-
-            f.write("\n3. 最近提交\n")
-            f.write("-" * 30 + "\n")
-            for commit in recent_commits:
-                f.write(f"[{commit['时间']}] {commit['作者']}: {commit['消息']}\n")
-
-        print(f"文本报告已保存: {txt_report_path}")
+        # 3. 增强版可视化
+        print(f"\n[3/3] 正在生成增强版演化图表...")
+        env_viz = EvolutionVisualizer(output_dir)
+        
+        if full_report.get('complexity_evolution'):
+            env_viz.plot_complexity_evolution(full_report['complexity_evolution'])
+        
+        env_viz.plot_bug_patterns(full_report.get('bug_fix_analysis'))
+        env_viz.plot_code_churn(full_report.get('code_churn'))
+        env_viz.plot_contributor_growth(full_report.get('contributor_evolution'))
+        
+        # 保存结构化报告
+        env_viz.save_summary_report(full_report)
 
         print("\n" + "=" * 60)
-        print("分析完成！")
-        print(f"所有结果已保存到: {os.path.abspath(output_dir)}")
+        print("✅ 分析完成！")
+        print(f"📊 基础报告: {os.path.join(output_dir, 'combined_report.png')}")
+        print(f"📈 演化图表已保存至: {output_dir}")
+        print(f"📄 完整数据摘要: {os.path.join(output_dir, 'evolution_summary.json')}")
+        print("=" * 60)
 
         return True
 
