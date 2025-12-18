@@ -3,9 +3,7 @@ Git仓库分析模块
 功能：读取Git仓库信息，进行统计分析
 """
 import git
-from datetime import datetime
 from collections import Counter, defaultdict
-import pandas as pd
 import os
 
 
