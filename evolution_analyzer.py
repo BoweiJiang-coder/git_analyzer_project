@@ -5,12 +5,8 @@
 """
 import git
 import os
-import re
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
-import tempfile
-import shutil
-import json
+from datetime import datetime
 
 # 代码分析库
 try:

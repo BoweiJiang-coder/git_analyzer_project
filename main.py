@@ -3,10 +3,8 @@
 功能：整合分析器和可视化器，提供命令行界面
 """
 import argparse
-import json
 import sys
 import os
-from datetime import datetime
 from analyzer import GitAnalyzer
 from visualizer import GitVisualizer
 import matplotlib.pyplot as plt
