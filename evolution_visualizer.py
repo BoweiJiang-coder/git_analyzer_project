@@ -4,12 +4,13 @@ import pandas as pd
 import os
 import json
 
+
 class EvolutionVisualizer:
     def __init__(self, output_dir='analysis_results'):
         self.output_dir = output_dir
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        
+
         # 设置绘图风格
         sns.set_theme(style="whitegrid")
         plt.rcParams['font.sans-serif'] = ['SimHei']
@@ -28,12 +29,17 @@ class EvolutionVisualizer:
         plt.figure(figsize=(12, 6))
         sns.lineplot(data=df, x='date', y='avg_complexity', marker='o', label='平均圈复杂度')
         plt.fill_between(df['date'], df['avg_complexity'], alpha=0.2)
-        
+
         plt.title('代码复杂度演化趋势', fontsize=15)
         plt.xlabel('日期')
         plt.ylabel('平均复杂度 (Cyclomatic)')
+
+        # 优化 X 轴标签显示，防止遮挡
+        if len(df) > 15:
+            plt.gca().xaxis.set_major_locator(plt.MaxNLocator(10))
+
         plt.xticks(rotation=45)
-        
+
         plt.tight_layout()
         plt.savefig(os.path.join(self.output_dir, 'evolution_complexity.png'), dpi=300)
         plt.close()
@@ -46,15 +52,22 @@ class EvolutionVisualizer:
         # 1. 月度 Bug 修复趋势
         months = list(bug_data['bug_fixes_by_month'].keys())
         counts = list(bug_data['bug_fixes_by_month'].values())
-        
+
         if months:
             plt.figure(figsize=(12, 6))
             sns.barplot(x=months, y=counts, palette="viridis")
             plt.title('月度 Bug 修复提交分布', fontsize=15)
             plt.xlabel('月份')
             plt.ylabel('修复提交数')
+
+            # 优化 X 轴标签显示，防止遮挡
+            if len(months) > 15:
+                step = max(1, len(months) // 10)
+                for i, label in enumerate(plt.gca().get_xticklabels()):
+                    if i % step != 0:
+                        label.set_visible(False)
+
             plt.xticks(rotation=45)
-            
             plt.tight_layout()
             plt.savefig(os.path.join(self.output_dir, 'evolution_bugs_monthly.png'), dpi=300)
             plt.close()
@@ -64,7 +77,7 @@ class EvolutionVisualizer:
         if buggy_files:
             files = [f['file'].split('/')[-1] for f in buggy_files]
             fixes = [f['bug_fixes'] for f in buggy_files]
-            
+
             plt.figure(figsize=(10, 6))
             sns.barplot(x=fixes, y=files, palette="magma")
             plt.title('Bug 最密集的文件 Top 10', fontsize=15)
@@ -74,24 +87,51 @@ class EvolutionVisualizer:
             plt.close()
 
     def plot_code_churn(self, churn_data):
-        """绘制代码变动率（Churn）分析"""
+        """绘制代码变动率（Churn）分析 - 整合对数刻度、峰值标注和横坐标优化"""
         if not churn_data or not churn_data.get('churn_timeline'):
             return
 
         df = pd.DataFrame(churn_data['churn_timeline'])
         if df.empty: return
         df['date'] = pd.to_datetime(df['date'])
-        
-        plt.figure(figsize=(12, 6))
-        plt.stackplot(df['date'], df['additions'], df['deletions'], 
+
+        # 计算总变动量用于寻找最高点
+        df['total_churn'] = df['additions'] + df['deletions']
+
+        plt.figure(figsize=(12, 8))
+        plt.stackplot(df['date'], df['additions'], df['deletions'],
                       labels=['新增行数', '删除行数'], alpha=0.6, colors=['#2ecc71', '#e74c3c'])
-        
-        plt.title('代码变动率 (Code Churn) 演化', fontsize=15)
+
+        # 使用对称对数刻度，1000以内保持线性，超过1000进入对数压缩
+        plt.yscale('symlog', linthresh=1000)
+
+        plt.title('代码变动率 (Code Churn) 演化 (对数刻度)', fontsize=15)
         plt.xlabel('日期')
-        plt.ylabel('代码行数变动')
+        plt.ylabel('代码行数变动 (1000以上为对数)')
+
+        # 优化 X 轴标签显示，防止遮挡
+        if len(df) > 15:
+            plt.gca().xaxis.set_major_locator(plt.MaxNLocator(10))
+
+        # 自动标注最高峰值
+        max_val = df['total_churn'].max()
+        if not df.empty and max_val > 500:
+            max_idx = df['total_churn'].idxmax()
+            peak_date = df.loc[max_idx, 'date']
+
+            plt.annotate(f'最高峰值: {int(max_val)}',
+                         xy=(peak_date, max_val),
+                         xytext=(0, 40),
+                         textcoords='offset points',
+                         ha='center',
+                         va='bottom',
+                         arrowprops=dict(arrowstyle='->', color='black', lw=1.5),
+                         bbox=dict(boxstyle="round,pad=0.5", fc="yellow", ec="orange", alpha=0.9))
+
         plt.legend(loc='upper left')
         plt.xticks(rotation=45)
-        
+        plt.grid(True, which="both", ls="-", alpha=0.2)
+
         plt.tight_layout()
         plt.savefig(os.path.join(self.output_dir, 'evolution_code_churn.png'), dpi=300)
         plt.close()
@@ -103,22 +143,22 @@ class EvolutionVisualizer:
 
         df = pd.DataFrame(contributor_data['contributor_evolution'])
         if df.empty: return
-        
+
         plt.figure(figsize=(12, 6))
         sns.lineplot(data=df, x='month', y='cumulative_contributors', marker='s', color='blue', label='累计贡献者')
         sns.barplot(data=df, x='month', y='new_contributors', color='lightblue', alpha=0.5, label='每月新增')
-        
+
         plt.title('贡献者社区演化增长', fontsize=15)
         plt.xlabel('月份')
         plt.ylabel('人数')
         plt.legend()
-        
+
         # 优化 X 轴标签显示
         if len(df) > 15:
             for i, label in enumerate(plt.gca().get_xticklabels()):
                 if i % max(1, (len(df) // 10)) != 0:
                     label.set_visible(False)
-        
+
         plt.xticks(rotation=45)
         plt.tight_layout()
         plt.savefig(os.path.join(self.output_dir, 'evolution_contributors.png'), dpi=300)
@@ -127,7 +167,7 @@ class EvolutionVisualizer:
     def save_summary_report(self, full_report):
         """保存结构化 JSON 报告"""
         report_path = os.path.join(self.output_dir, 'evolution_summary.json')
-        
+
         def serializer(obj):
             if hasattr(obj, 'isoformat'):
                 return obj.isoformat()
