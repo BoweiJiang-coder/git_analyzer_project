@@ -46,6 +46,7 @@
 - **错误处理**：完善的异常处理和用户提示
 - **多格式输出**：支持PNG图片、JSON、结构化报告多种格式
 - **跨平台**：支持Windows、macOS、Linux系统
+- **智能字体配置**：自动检测操作系统并配置中文字体，避免乱码问题 ✅
 
 ## 🛠️ 快速开始
 
@@ -62,11 +63,15 @@
    cd git_analyzer_project
    ```
 
-2. **安装依赖**
+2. **安装基础依赖**
    ```bash
    pip install -r requirements.txt
    ```
 
+3. **安装可选依赖**（如需深度演化分析）
+   ```bash
+   pip install libcst radon lizard
+   ```
 
 ### 使用方式
 
@@ -81,8 +86,8 @@ python main.py /path/to/repo --output my_results
 # 显示前15名作者
 python main.py /path/to/repo --top 15
 
-# 快速分析（跳过深度演化分析）
-python main.py /path/to/repo --quick
+# 使用交互模式
+python main.py --interactive
 ```
 
 #### 方式二：交互模式
@@ -103,6 +108,7 @@ git_analyzer_project/
 ├── visualizer.py            # 基础可视化模块
 ├── evolution_analyzer.py    # 深度演化分析模块
 ├── evolution_visualizer.py  # 演化分析可视化模块
+├── font_config.py           # 智能字体配置文件
 ├── README.md                # 项目说明文档
 ├── requirements.txt         # 依赖列表
 └── analysis_results/        # 输出目录（自动生成）
@@ -155,6 +161,15 @@ git_analyzer_project/
   - `plot_contributor_growth()`: 绘制贡献者增长曲线
   - `save_summary_report()`: 保存结构化JSON报告
 
+### font_config.py
+- **功能**：智能字体配置模块
+- **核心函数**：`configure_fonts()`
+- **特性**：
+  - 自动检测操作系统类型（Windows/macOS/Linux）
+  - 自动加载系统中文字体文件
+  - 解决matplotlib中文字体显示问题
+  - 避免Unicode负号警告
+
 ## 📊 输出示例
 
 ### 1. 综合报告图 (`combined_report.png`)
@@ -168,7 +183,7 @@ git_analyzer_project/
 ### 2. 演化分析图表
 - **代码复杂度演化**：显示项目代码质量变化趋势
 - **Bug修复分布**：识别Bug修复的热点时间段
-- **代码变动率**：使用对数刻度显示代码变更幅度
+- **代码变动率**：展示代码变更幅度和趋势
 - **贡献者增长**：展示社区发展的健康程度
 
 ### 3. 结构化报告 (`evolution_summary.json`)
@@ -182,16 +197,82 @@ git_analyzer_project/
   "bug_fix_analysis": {
     "total_bug_fixes": 85,
     "bug_fix_rate": 6.8,
-    "top_bug_fixers": [...],
-    "most_buggy_files": [...]
+    "top_bug_fixers": [
+      {
+        "author": "张三",
+        "fixes": 25
+      },
+      {
+        "author": "李四",
+        "fixes": 18
+      }
+    ],
+    "most_buggy_files": [
+      {
+        "file": "src/main.py",
+        "bug_fixes": 12
+      },
+      {
+        "file": "src/utils.py",
+        "bug_fixes": 8
+      }
+    ],
+    "recent_bug_fixes": [
+      {
+        "hash": "a1b2c3d4",
+        "author": "王五",
+        "date": "2024-01-15 10:30:00",
+        "message": "修复空指针异常"
+      }
+    ],
+    "bug_fixes_by_month": {
+      "2024-01": 5,
+      "2024-02": 8,
+      "2024-03": 12
+    }
   },
   "code_churn": {
-    "churn_timeline": [...],
-    "high_churn_files": [...]
+    "total_additions": 12500,
+    "total_deletions": 8400,
+    "churn_timeline": [
+      {
+        "date": "2024-01-15",
+        "additions": 150,
+        "deletions": 80,
+        "net_change": 70,
+        "files_changed": 5
+      }
+    ],
+    "high_churn_files": [
+      {
+        "file": "src/main.py",
+        "total_churn": 450,
+        "additions": 300,
+        "deletions": 150,
+        "change_count": 12
+      }
+    ]
   },
   "contributor_evolution": {
-    "contributor_evolution": [...],
-    "total_contributors": 42
+    "total_contributors": 42,
+    "contributor_evolution": [
+      {
+        "month": "2024-01",
+        "total_contributors": 5,
+        "new_contributors": 2,
+        "cumulative_contributors": 5
+      }
+    ],
+    "contributor_stats": [
+      {
+        "author": "张三",
+        "total_commits": 150,
+        "first_commit": "2023-12-01",
+        "last_commit": "2024-01-15",
+        "active_days": 46,
+        "commits_per_day": 3.26
+      }
+    ]
   }
 }
 ```
@@ -204,14 +285,13 @@ git_analyzer_project/
 | `--output` | `-o` | 输出目录 | `analysis_results` |
 | `--top` | `-t` | 显示前N名作者 | `10` |
 | `--interactive` | `-i` | 使用交互模式 | `False` |
-| `--quick` | `-q` | 快速模式（跳过深度分析） | `False` |
 
 ### 交互模式
 交互模式提供友好的用户界面：
 1. 输入Git仓库路径（支持相对/绝对路径）
 2. 指定输出目录
-3. 选择分析深度（基础/完整）
-4. 选择要生成的图表类型
+3. 显示前N名作者
+4. 自动进行完整分析
 
 ## 🐛 常见问题
 
@@ -221,11 +301,40 @@ A: 如果不需要深度演化分析功能，可以跳过安装`libcst`、`radon
 ### Q2: 分析大型仓库速度慢？
 A: 工具内置智能采样机制，对于超过1000次提交的仓库会自动采样分析。可以通过调整`sample_commits`参数控制采样密度。
 
-### Q3: 中文显示乱码？
-A: 确保系统已安装中文字体（如SimHei），或修改`visualizer.py`中的字体设置。
+### Q3: 图表中的中文字体无法显示？
+A: 我们已内置智能字体配置系统，支持：
+   - **Windows系统**：自动使用微软雅黑、黑体等系统字体
+   - **macOS系统**：自动使用苹方字体
+   - **Linux系统**：自动使用文泉驿微米黑
+   
+   如果仍有显示问题，请确保：
+   1. 系统已安装相应中文字体
+   2. 使用最新版本的matplotlib库
+   3. 运行 `python -c "import matplotlib; print(matplotlib.rcParams['font.sans-serif'])"` 检查字体配置
 
 ### Q4: GitPython报错"不是有效的Git仓库"？
 A: 请确认指定的路径是有效的Git仓库根目录（包含`.git`文件夹）。
+
+### Q5: 出现"Font 'default' does not have a glyph for '\u2212'"警告？
+A: 这个问题已在最新版本中解决。我们强制使用ASCII减号而不是Unicode负号。如果仍有问题，请更新到最新版本。
+
+## ⚠️ 已知问题与限制
+
+### 字体相关
+1. **某些Linux发行版**：可能需要手动安装中文字体包
+   ```bash
+   # Ubuntu/Debian
+   sudo apt install fonts-wqy-microhei
+   
+   # Fedora/RHEL
+   sudo dnf install wqy-microhei-fonts
+   ```
+
+2. **Docker环境**：容器内可能缺少中文字体，需要挂载字体文件
+
+### 性能相关
+1. **大型仓库分析**：深度演化分析可能较耗时，建议使用采样功能
+2. **内存使用**：分析极大仓库时可能占用较多内存
 
 ## 📝 开发指南
 
@@ -249,6 +358,30 @@ A: 请确认指定的路径是有效的Git仓库根目录（包含`.git`文件�
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启一个 Pull Request
 
+## 🆘 技术支持
+
+### 字体配置问题
+如果遇到中文字体无法显示的问题，请按照以下步骤排查：
+
+1. **检查字体配置**：
+   ```bash
+   python -c "import matplotlib; print('字体列表:', matplotlib.rcParams['font.sans-serif']); print('负号设置:', matplotlib.rcParams['axes.unicode_minus'])"
+   ```
+
+2. **手动配置字体**（可选）：
+   编辑 `font_config.py` 文件，修改字体路径或添加系统可用字体
+
+3. **重新安装matplotlib**：
+   ```bash
+   pip install --upgrade matplotlib
+   ```
+
+### 报告问题
+遇到其他问题？请：
+1. 在GitHub Issues中报告问题
+2. 提供操作系统信息、Python版本和错误日志
+3. 如果可能，提供测试仓库的链接
+
 ## 📄 许可证
 
 本项目基于 Academic License 发布，仅用于学习和研究目的。
@@ -258,7 +391,13 @@ A: 请确认指定的路径是有效的Git仓库根目录（包含`.git`文件�
 - 感谢《开源软件基础》课程提供的学习机会
 - 感谢所有开源软件库的贡献者
 - 特别感谢GitPython、Matplotlib、LibCST等优秀开源项目
+- 感谢Windows字体系统提供的稳定中文字体支持
 
 ---
+
+**更新日志**：
+- 2025-12-21: 彻底解决Windows系统中文字体显示问题和负号警告问题
+- 2025-12-20: 添加智能字体配置系统，支持跨平台中文字体自动检测
+- 2025-12-15: 初始版本发布，支持基础Git仓库分析和深度演化分析
 
 **提示**: 本工具旨在帮助开发者更好地理解项目演化规律，不应用于商业用途或侵犯他人隐私。使用前请确保你有权分析目标Git仓库。
