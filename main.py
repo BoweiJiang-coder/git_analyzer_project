@@ -5,54 +5,29 @@
 import argparse
 import sys
 import os
-from analyzer import GitAnalyzer
-from visualizer import GitVisualizer
-import matplotlib.pyplot as plt
-from pylab import mpl
 import warnings
-import pysnooper
-from evolution_analyzer import EvolutionAnalyzer
-from evolution_visualizer import EvolutionVisualizer
+
+# 首先配置字体
+import matplotlib
+try:
+    from font_config import configure_fonts
+    configure_fonts()
+except ImportError as e:
+    print(f"⚠ 字体配置文件导入失败: {e}")
+    # 手动设置Windows字体
+    matplotlib.rcParams['axes.unicode_minus'] = False
+    matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial', 'DejaVu Sans']
+    matplotlib.rcParams['font.family'] = 'sans-serif'
+    print("手动字体设置完成")
 
 # 忽略所有警告
 warnings.filterwarnings('ignore')
 
-# 设置显示中文字体
-mpl.rcParams["font.sans-serif"] = ["SimHei"]
-plt.rcParams['axes.unicode_minus'] = False  # 解决中文字体下坐标轴负数的负号显示问题
-
-# 使用 pysnooper 装饰主分析函数，方便观察演化分析的内部过程
-@pysnooper.snoop()
-def run_full_analysis(repo_path, output_dir):
-    print(f"开始分析仓库: {repo_path}")
-    
-    # 1. 基础分析
-    analyzer = GitAnalyzer(repo_path)
-    basic_stats = analyzer.get_basic_stats()
-    author_ranking = analyzer.get_author_ranking()
-    frequency_data = analyzer.get_commit_frequency()
-    
-    # 2. 深度演化分析
-    evo_analyzer = EvolutionAnalyzer(repo_path)
-    full_report = evo_analyzer.generate_full_report()
-    
-    # 3. 可视化
-    print("\n正在生成可视化图表...")
-    # 基础可视化
-    viz = GitVisualizer(output_dir)
-    viz.plot_combined_report(basic_stats, author_ranking, frequency_data)
-    
-    # 增强版演化可视化
-    env_viz = EvolutionVisualizer(output_dir)
-    env_viz.plot_complexity_evolution(full_report.get('complexity_evolution'))
-    env_viz.plot_bug_patterns(full_report.get('bug_fix_analysis'))
-    env_viz.plot_code_churn(full_report.get('code_churn'))
-    env_viz.plot_contributor_growth(full_report.get('contributor_evolution'))
-    
-    # 4. 保存结果
-    env_viz.save_summary_report(full_report)
-    
-    print(f"\n恭喜！所有分析已完成，结果保存在: {output_dir}")
+# 导入其他模块
+from analyzer import GitAnalyzer
+from visualizer import GitVisualizer
+from evolution_analyzer import EvolutionAnalyzer
+from evolution_visualizer import EvolutionVisualizer
 
 def analyze_repository(repo_path, output_dir='analysis_results', top_authors=10):
     """
@@ -76,28 +51,27 @@ def analyze_repository(repo_path, output_dir='analysis_results', top_authors=10)
         basic_stats = analyzer.get_basic_stats()
         author_ranking = analyzer.get_author_ranking(top_n=top_authors)
         commit_frequency = analyzer.get_commit_frequency(by='month')
-        
+
         # 基础可视化
         viz = GitVisualizer(output_dir)
         viz.plot_combined_report(basic_stats, author_ranking, commit_frequency)
 
-        # 2. 深度演化分析 (使用 libcst, radon, lizard)
+        # 2. 深度演化分析
         print(f"\n[2/3] 正在进行深度演化分析 (这可能需要一点时间)...")
         evo_analyzer = EvolutionAnalyzer(repo_path)
-        # 采样分析以平衡速度和精度
         full_report = evo_analyzer.generate_full_report()
 
         # 3. 增强版可视化
         print(f"\n[3/3] 正在生成增强版演化图表...")
         env_viz = EvolutionVisualizer(output_dir)
-        
+
         if full_report.get('complexity_evolution'):
             env_viz.plot_complexity_evolution(full_report['complexity_evolution'])
-        
+
         env_viz.plot_bug_patterns(full_report.get('bug_fix_analysis'))
         env_viz.plot_code_churn(full_report.get('code_churn'))
         env_viz.plot_contributor_growth(full_report.get('contributor_evolution'))
-        
+
         # 保存结构化报告
         env_viz.save_summary_report(full_report)
 
@@ -173,7 +147,7 @@ def main():
         # 获取仓库路径
         repo_path = input("请输入Git仓库路径（留空则使用当前目录）: ").strip()
         if not repo_path:
-            repo_path = 'D:/Python/git_analyzer_project'
+            repo_path = '.'
 
         # 获取输出目录
         output_dir = input(f"请输入输出目录（默认: {args.output}）: ").strip()
